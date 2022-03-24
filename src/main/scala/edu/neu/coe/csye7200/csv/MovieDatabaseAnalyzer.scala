@@ -25,34 +25,34 @@ case class MovieDatabaseAnalyzer(resource: String) {
 
   private val mty: Try[Table[Movie]] = Table.parseResource(resource, getClass)
 
-  val ratings: Try[Dataset[Rating]] = mty map {
+  val ratings: Try[Dataset[Double]] = mty map {
     mt =>
-      spark.createDataset(mt.map(_.reviews.contentRating).rows.toSeq)
+      spark.createDataset(mt.map(_.reviews.imdbScore).rows.toSeq)
   }
 
   def getSumCount = ratings map {
-    _.rdd.filter(_.age.nonEmpty).map(x => (x.age.getOrElse(0).toDouble, if (x.age.nonEmpty) 1 else 0)).reduce((a, b) => (a._1 + b._1, a._2 + b._2))
+    _.rdd.map((_, 1)).reduce((a, b) => (a._1 + b._1, a._2 + b._2))
   }
 
   def getMean2 = ratings map {
-    _.filter(_.age.nonEmpty).select(mean("age")).head.getDouble(0)
+    _.filter(Option(_).isDefined).select(mean("value")).head.getDouble(0)
   }
 
   def getMean: Try[Double] = getSumCount map {
     t => t._1 / t._2
   }
-
+//
   def getSqrtDevSumCount = ratings map {
     r =>
       val m = getMean.get
-      r.rdd.filter(_.age.nonEmpty).map(x => (if (x.age.nonEmpty) math.pow(x.age.getOrElse(0) - m, 2) else 0, if (x.age.nonEmpty) 1 else 0)).reduce((a, b) => (a._1 + b._1, a._2 + b._2))
+      r.rdd.filter(Option(_).isDefined).map(x => (math.pow(x - m, 2), 1)).reduce((a, b) => (a._1 + b._1, a._2 + b._2))
   }
   def getStdDev = getSqrtDevSumCount map {
     t => math.sqrt(t._1 / t._2)
   }
-
+//
   def getStdDev2 = ratings map {
-    _.filter(_.age.nonEmpty).select(stddev("age")).head.getDouble(0)
+    _.filter(Option(_).isDefined).select(stddev("value")).head.getDouble(0)
   }
 
 }
@@ -66,7 +66,7 @@ object MovieDatabaseAnalyzer extends App {
   def apply(resource: String): MovieDatabaseAnalyzer = new MovieDatabaseAnalyzer(resource)
 
   val mda = apply("/movie_metadata.csv")
-
-  println("The mean for ratings is " + mda.getMean.get)
-  println("The standard deviation for ratings is " + mda.getStdDev.get)
+  mda
+//  println("The mean for ratings is " + mda.getMean.get)
+//  println("The standard deviation for ratings is " + mda.getStdDev.get)
 }

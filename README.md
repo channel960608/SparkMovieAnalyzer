@@ -1,0 +1,4 @@
+# SparkMovieRating
+
+## Requirements
+scala == sbt
